@@ -159,4 +159,31 @@ def create_pdf(dataframe, title):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", "B", 16)
-    pdf.cell(200
+    pdf.cell(200, 10, txt=title, ln=True, align='C')
+    pdf.set_font("Arial", size=12)
+    
+    # Add table headers
+    col_widths = [pdf.get_string_width(col) + 10 for col in dataframe.columns]
+    pdf.set_fill_color(200, 220, 255)
+    for i, col in enumerate(dataframe.columns):
+        pdf.cell(col_widths[i], 10, col, border=1, fill=True)
+    pdf.ln()
+
+    # Add table rows
+    for _, row in dataframe.iterrows():
+        for i, col in enumerate(dataframe.columns):
+            pdf.cell(col_widths[i], 10, str(row[col]), border=1)
+        pdf.ln()
+    
+    return pdf.output(dest='S').encode('latin1')
+
+# PDF Download Buttons
+pdf_sales = create_pdf(sales_forecast_df, "Sales Forecast")
+st.download_button("Download Sales Forecast as PDF", data=pdf_sales, file_name="sales_forecast.pdf", mime="application/pdf")
+
+pdf_labor = create_pdf(labor_forecast_df, "Labor Forecast")
+st.download_button("Download Labor Forecast as PDF", data=pdf_labor, file_name="labor_forecast.pdf", mime="application/pdf")
+
+pdf_staffing = create_pdf(staffing_summary_df, "Staffing Requirements")
+st.download_button("Download Staffing Requirements as PDF", data=pdf_staffing, file_name="staffing_requirements.pdf", mime="application/pdf")
+
