@@ -42,3 +42,13 @@ button:hover {
     max-width: 400px; /* Limit maximum width */
     text-align: center; /* Center text in inputs */
 }
+
+/* Center the logo and adjust its size */
+.logo {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: auto;
+    height: 50px; /* Sets the height of the logo to 50px */
+    margin-bottom: 10px; /* Adds some spacing below the logo */
+}
