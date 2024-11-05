@@ -38,9 +38,21 @@ barista_hourly_rate = st.number_input("Enter Barista Hourly Rate ($):", min_valu
 st.subheader("Hours of Operation")
 open_hour = st.number_input("Opening Hour (24-hour format, e.g., 7 for 7 AM):", min_value=0, max_value=23, value=7)
 close_hour = st.number_input("Closing Hour (24-hour format, e.g., 17 for 5 PM):", min_value=0, max_value=23, value=17)
+days_open_per_week = st.number_input("Days Open per Week:", min_value=1, max_value=7, value=6)
 
-# Calculate total operating hours per day
+# Calculate total operating hours per week
 hours_open_per_day = close_hour - open_hour
+total_hours_per_week = hours_open_per_day * days_open_per_week
+
+# Manager hours per week
+manager_hours_per_week = 36
+
+# Calculate shift supervisor required hours
+supervisor_hours_needed = total_hours_per_week - manager_hours_per_week
+supervisor_hours_per_week = min(supervisor_hours_needed, 40)
+
+# Any remaining hours will be covered by baristas
+barista_hours_per_week = max(0, supervisor_hours_needed - supervisor_hours_per_week)
 
 # Function to determine the staff count needed based on hourly sales
 def determine_staff_needed(hourly_sales):
@@ -48,73 +60,72 @@ def determine_staff_needed(hourly_sales):
         if hourly_sales <= threshold:
             return staff_count
 
-# Function to calculate labor cost for a given time block based on staffing needs
-def calculate_time_block_labor_cost(time_block_sales, time_block_hours, manager_rate, supervisor_rate, barista_rate):
-    hourly_sales = time_block_sales / time_block_hours
-    staff_needed = determine_staff_needed(hourly_sales)
-
-    # Calculate the hours for each role based on staffing needs
-    manager_hours = min(36, staff_needed * time_block_hours)  # Manager works up to 36 hours per week
-    supervisor_hours = max(0, (staff_needed - 1) * time_block_hours)  # Supervisor fills in remaining
-    barista_hours = max(0, (staff_needed - 2) * time_block_hours)  # Baristas fill any additional hours
-
-    # Calculate labor cost for this time block
-    time_block_labor_cost = (
-        manager_hours * manager_rate +
-        supervisor_hours * supervisor_rate +
-        barista_hours * barista_rate
-    )
-    return time_block_labor_cost, manager_hours, supervisor_hours, barista_hours
-
-# Calculate the total monthly labor cost based on sales projection, day-of-week percentages, and time block percentages
-def calculate_monthly_labor_costs_and_staffing(monthly_sales, manager_rate, supervisor_rate, barista_rate):
-    monthly_labor_cost = 0
-    staffing_summary = []
-
-    for day, day_percentage in day_percentages.items():
-        # Calculate daily sales for each day type
-        daily_sales = (monthly_sales * day_percentage) / 4.3  # Average daily sales for this day type
-
-        # Calculate labor cost and staff requirements for each time block in the day
-        daily_labor_cost = 0
-        day_manager_hours = 0
-        day_supervisor_hours = 0
-        day_barista_hours = 0
-        
-        for time_block, block_percentage in time_block_percentages.items():
-            time_block_sales = daily_sales * block_percentage
-            time_block_hours = 2 if time_block in ["7 AM - 9 AM", "12 PM - 2 PM"] else 3  # Hours per time block
-
-            # Calculate labor cost and hours for this time block
-            block_labor_cost, manager_hours, supervisor_hours, barista_hours = calculate_time_block_labor_cost(
-                time_block_sales, time_block_hours, manager_rate, supervisor_rate, barista_rate
-            )
-            daily_labor_cost += block_labor_cost
-            day_manager_hours += manager_hours
-            day_supervisor_hours += supervisor_hours
-            day_barista_hours += barista_hours
-
-        # Multiply by 4.3 to get monthly labor cost for this day type
-        monthly_labor_cost += daily_labor_cost * 4.3
-        
-        # Append to staffing summary
-        staffing_summary.append({
-            "Day": day,
-            "Manager Hours": day_manager_hours * 4.3,
-            "Supervisor Hours": day_supervisor_hours * 4.3,
-            "Barista Hours": day_barista_hours * 4.3
-        })
+# Function to calculate daily labor and staffing requirements
+def calculate_daily_labor_and_staffing(daily_sales, manager_rate, supervisor_rate, barista_rate):
+    daily_labor_cost = 0
+    total_manager_hours = 0
+    total_supervisor_hours = 0
+    total_barista_hours = 0
     
-    return monthly_labor_cost, pd.DataFrame(staffing_summary)
+    for time_block, block_percentage in time_block_percentages.items():
+        # Calculate time block sales and hours
+        time_block_sales = daily_sales * block_percentage
+        time_block_hours = 2 if time_block in ["7 AM - 9 AM", "12 PM - 2 PM"] else 3
+        
+        # Determine staffing needs
+        hourly_sales = time_block_sales / time_block_hours
+        staff_needed = determine_staff_needed(hourly_sales)
+        
+        # Allocate hours based on staffing rules
+        manager_hours = min(manager_hours_per_week - total_manager_hours, staff_needed * time_block_hours)
+        remaining_hours = staff_needed * time_block_hours - manager_hours
 
-# Get the labor cost and staffing summary
-monthly_labor_cost, staffing_summary_df = calculate_monthly_labor_costs_and_staffing(
-    monthly_sales_projection, manager_hourly_rate, supervisor_hourly_rate, barista_hourly_rate
-)
+        # Allocate shift supervisor hours based on remaining coverage
+        supervisor_hours = min(supervisor_hours_per_week - total_supervisor_hours, remaining_hours)
+        remaining_hours -= supervisor_hours
 
-# Display the results
-st.subheader("Monthly Labor Cost")
-st.write(f"Estimated Monthly Labor Cost: ${monthly_labor_cost:,.2f}")
+        # Allocate any remaining hours to baristas
+        barista_hours = remaining_hours
 
-st.subheader("Staffing Summary (Monthly Hours by Role)")
-st.dataframe(staffing_summary_df.style.format({"Manager Hours": "{:,.2f}", "Supervisor Hours": "{:,.2f}", "Barista Hours": "{:,.2f}"}))
+        # Update total hours for each role
+        total_manager_hours += manager_hours
+        total_supervisor_hours += supervisor_hours
+        total_barista_hours += barista_hours
+        
+        # Calculate cost for this time block
+        daily_labor_cost += (manager_hours * manager_rate) + (supervisor_hours * supervisor_rate) + (barista_hours * barista_rate)
+        
+    return daily_labor_cost, total_manager_hours, total_supervisor_hours, total_barista_hours
+
+# Calculate weekly labor costs and staffing requirements for each day
+weekly_labor_cost = 0
+staffing_summary = []
+
+for day, percentage in day_percentages.items():
+    daily_sales = (monthly_sales_projection * percentage) / 4.3
+    daily_labor_cost, manager_hours, supervisor_hours, barista_hours = calculate_daily_labor_and_staffing(
+        daily_sales, manager_hourly_rate, supervisor_hourly_rate, barista_hourly_rate
+    )
+    weekly_labor_cost += daily_labor_cost
+    staffing_summary.append({
+        "Day": day,
+        "Manager Hours": manager_hours,
+        "Shift Supervisor Hours": supervisor_hours,
+        "Barista Hours": barista_hours,
+        "Daily Labor Cost": daily_labor_cost
+    })
+
+# Convert staffing summary to DataFrame
+staffing_summary_df = pd.DataFrame(staffing_summary)
+
+# Display Results
+st.subheader("Weekly Labor Cost")
+st.write(f"Estimated Weekly Labor Cost: ${weekly_labor_cost:,.2f}")
+
+st.subheader("Staffing Requirements (Daily Breakdown)")
+st.dataframe(staffing_summary_df.style.format({
+    "Manager Hours": "{:.2f}",
+    "Shift Supervisor Hours": "{:.2f}",
+    "Barista Hours": "{:.2f}",
+    "Daily Labor Cost": "${:,.2f}"
+}))
