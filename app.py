@@ -80,4 +80,20 @@ if st.button("Calculate Monthly Labor Costs"):
         daily_labor_cost = calculate_daily_labor_costs(daily_sales)
         monthly_labor_cost += daily_labor_cost * 4.3  # Multiply by 4.3 to get monthly total for this day type
 
+    # Display the estimated monthly labor cost
     st.write(f"Estimated Monthly Labor Cost: ${monthly_labor_cost:,.2f}")
+
+    # Display estimated labor cost breakdown in a table
+    breakdown_data = {
+        "Day of the Week": list(day_percentages.keys()),
+        "Daily Sales": [monthly_sales_projection * perc / 4.3 for perc in day_percentages.values()],
+        "Estimated Daily Labor Cost": [calculate_daily_labor_costs(monthly_sales_projection * perc / 4.3) for perc in day_percentages.values()],
+    }
+    breakdown_df = pd.DataFrame(breakdown_data)
+    breakdown_df["Estimated Monthly Labor Cost (per day type)"] = breakdown_df["Estimated Daily Labor Cost"] * 4.3
+
+    st.subheader("Labor Cost Breakdown by Day of the Week")
+    st.dataframe(breakdown_df.style.format({"Daily Sales": "${:,.2f}", "Estimated Daily Labor Cost": "${:,.2f}", "Estimated Monthly Labor Cost (per day type)": "${:,.2f}"}))
+
+    # Display the total estimated monthly labor cost at the bottom of the table
+    st.write(f"**Total Estimated Monthly Labor Cost:** ${monthly_labor_cost:,.2f}")
