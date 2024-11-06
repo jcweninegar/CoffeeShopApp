@@ -1,104 +1,91 @@
 import streamlit as st
 import pandas as pd
 
-# Assumptions
-capture_rate_years = {
-    1: [0.0062, 0.0057, 0.0070, 0.0068, 0.0071, 0.0074, 0.0075, 0.0084, 0.0080, 0.0084, 0.0080, 0.0077],
-    2: [0.0130, 0.0119, 0.0147, 0.0143, 0.0148, 0.0155, 0.0158, 0.0176, 0.0167, 0.0177, 0.0168, 0.0163],
-    3: [0.0167, 0.0152, 0.0188, 0.0183, 0.0190, 0.0199, 0.0202, 0.0225, 0.0214, 0.0227, 0.0215, 0.0208]
-}
-hourly_sales_distribution = [0.20, 0.20, 0.10, 0.075, 0.075, 0.05, 0.10, 0.10, 0.05, 0.05]
-daily_sales_distribution = [0.1399, 0.15, 0.1599, 0.1599, 0.17, 0.2199]  # Monday to Saturday
-manager_hours = 36  # on-floor hours
-shift_supervisor_min_hours = 24
-payroll_tax_rate = 0.18
-benefits_per_employee = 50  # monthly benefits/expenses per employee
+# Function to calculate weekly hours and staffing needs
+def calculate_staffing(monthly_sales, days_per_week, manager_rate, supervisor_rate, barista_rate):
+    # Example percentages for each day of the week (based on sales distribution)
+    day_percentages = {
+        'Monday': 13.99,
+        'Tuesday': 15.00,
+        'Wednesday': 15.99,
+        'Thursday': 15.99,
+        'Friday': 17.00,
+        'Saturday': 21.99
+    }
 
-# App Interface
-st.title("Coffee Shop 3-Year Sales, Labor, and Staffing Forecast")
-
-# User Inputs
-traffic_count = st.number_input("Average Daily Traffic Count", min_value=0, step=1)
-average_sale = st.number_input("Average Sale ($)", min_value=0.0, step=0.1)
-days_open = st.number_input("Days Open per Week", min_value=1, max_value=7, step=1)
-operating_hours = st.slider("Operating Hours (Start and End Times)", value=(7, 17), min_value=0, max_value=24)
-manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.1)
-shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1)
-barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1)
-
-# Sales Forecast Calculation
-def calculate_sales_forecast():
-    forecast = []
-    for year in range(1, 4):
-        monthly_sales = []
-        for month, capture_rate in enumerate(capture_rate_years[year], start=1):
-            daily_sales = traffic_count * capture_rate * average_sale
-            monthly_sales.append(daily_sales * days_open * 4.3)
-        forecast.append(monthly_sales)
-    return pd.DataFrame(forecast, index=["Year 1", "Year 2", "Year 3"], columns=[f"Month {i+1}" for i in range(12)])
-
-# Labor Cost Calculation based on sales forecast
-def calculate_labor_costs(sales_forecast):
-    labor_forecast = []
-    for index, monthly_sales in sales_forecast.iterrows():
-        monthly_labor_costs = []
-        for sales in monthly_sales:
-            weekly_labor_cost = calculate_weekly_labor_cost(sales / days_open / 4.3)
-            monthly_labor_cost = weekly_labor_cost * 4.3
-            monthly_labor_costs.append(monthly_labor_cost)
-        labor_forecast.append(monthly_labor_costs)
-    return pd.DataFrame(labor_forecast, index=["Year 1", "Year 2", "Year 3"], columns=[f"Month {i+1}" for i in range(12)])
-
-def calculate_weekly_labor_cost(daily_sales):
-    # Calculate weekly coverage
-    total_hours_weekly = (operating_hours[1] - operating_hours[0]) * days_open
-    opening_closing_hours = days_open * 2  # 1 hour per day (30 min open, 30 min close)
-    manager_hours_weekly = manager_hours
-    shift_supervisor_hours_weekly = max(shift_supervisor_min_hours, total_hours_weekly - manager_hours_weekly)
-    barista_hours_weekly = total_hours_weekly - (manager_hours_weekly + shift_supervisor_hours_weekly + opening_closing_hours)
+    # Calculate daily sales from monthly sales
+    daily_sales = {day: (monthly_sales * (percentage / 100)) / 4.3 for day, percentage in day_percentages.items()}
     
-    # Calculate costs
-    manager_cost_weekly = manager_hours_weekly * manager_rate
-    shift_supervisor_cost_weekly = shift_supervisor_hours_weekly * shift_supervisor_rate
-    barista_cost_weekly = barista_hours_weekly * barista_rate
-    
-    # Total weekly labor cost with payroll tax and benefits
-    weekly_total_labor_cost = manager_cost_weekly + shift_supervisor_cost_weekly + barista_cost_weekly
-    payroll_expenses = weekly_total_labor_cost * payroll_tax_rate
-    total_weekly_labor_cost = weekly_total_labor_cost + payroll_expenses + (benefits_per_employee * 3)
-    
-    return total_weekly_labor_cost
+    # Hourly staffing needs based on time blocks
+    time_block_percentages = {
+        "7-9 AM": 0.40,
+        "9-12 PM": 0.25,
+        "12-2 PM": 0.15,
+        "2-5 PM": 0.20
+    }
 
-# Staffing Requirements Report
-def staffing_report():
-    total_hours_weekly = (operating_hours[1] - operating_hours[0]) * days_open
-    manager_hours_weekly = manager_hours
-    shift_supervisor_hours_weekly = max(shift_supervisor_min_hours, total_hours_weekly - manager_hours_weekly)
-    barista_hours_weekly = total_hours_weekly - (manager_hours_weekly + shift_supervisor_hours_weekly)
+    # Calculate hours per day for each role based on sales and coverage logic
+    total_weekly_hours_needed = 0
+    for day, sales in daily_sales.items():
+        for block, percentage in time_block_percentages.items():
+            block_sales = sales * percentage
+            if block_sales > 700:
+                staff_needed = 5
+            elif block_sales > 500:
+                staff_needed = 4
+            elif block_sales > 200:
+                staff_needed = 3
+            else:
+                staff_needed = 2
+            total_weekly_hours_needed += staff_needed * (3 if block == "9-12 PM" else 2)
     
+    # Calculate supervisory and barista hours
+    manager_hours = 36  # Manager fixed on-floor hours
+    supervisory_coverage = total_weekly_hours_needed - manager_hours
+    shift_supervisor_hours = min(supervisory_coverage, 80)  # Max 40 hours per supervisor, 2 supervisors for redundancy
+    barista_hours = total_weekly_hours_needed - (manager_hours + shift_supervisor_hours)
+
+    # Weekly costs based on role rates
+    weekly_cost_manager = manager_hours * manager_rate
+    weekly_cost_supervisor = shift_supervisor_hours * supervisor_rate
+    weekly_cost_barista = barista_hours * barista_rate
+
+    # Total weekly cost with a payroll expense assumption (e.g., 20% on top)
+    payroll_expense = 0.20
+    total_weekly_cost = (weekly_cost_manager + weekly_cost_supervisor + weekly_cost_barista) * (1 + payroll_expense)
+
+    # Create data for the staffing report table
     staffing_data = {
         "Role": ["Manager", "Shift Supervisor", "Barista"],
-        "Weekly Hours": [manager_hours_weekly, shift_supervisor_hours_weekly, barista_hours_weekly],
-        "Hourly Rate": [manager_rate, shift_supervisor_rate, barista_rate],
-        "Weekly Cost": [
-            manager_hours_weekly * manager_rate,
-            shift_supervisor_hours_weekly * shift_supervisor_rate,
-            barista_hours_weekly * barista_rate
-        ]
+        "Weekly Hours": [manager_hours, shift_supervisor_hours, barista_hours],
+        "Hourly Rate": [manager_rate, supervisor_rate, barista_rate],
+        "Weekly Cost": [weekly_cost_manager, weekly_cost_supervisor, weekly_cost_barista]
     }
-    return pd.DataFrame(staffing_data)
+    staffing_df = pd.DataFrame(staffing_data)
 
-# Generate Results
-sales_forecast_df = calculate_sales_forecast()
-labor_forecast_df = calculate_labor_costs(sales_forecast_df)
-staffing_report_df = staffing_report()
+    return staffing_df, total_weekly_cost
 
-# Display Results
-st.subheader("3-Year Sales Forecast")
-st.write(sales_forecast_df)
+# Streamlit app layout
+st.title("Coffee Shop Sales & Staffing Forecaster")
 
-st.subheader("3-Year Labor Cost Forecast")
-st.write(labor_forecast_df)
+# Input fields
+monthly_sales = st.number_input("Enter Monthly Sales Projection ($):", min_value=0, value=30000)
+days_per_week = st.slider("Days open per week:", min_value=1, max_value=7, value=6)
+manager_rate = st.number_input("Enter Manager Hourly Rate ($):", min_value=0.0, value=18.0)
+supervisor_rate = st.number_input("Enter Supervisor Hourly Rate ($):", min_value=0.0, value=15.0)
+barista_rate = st.number_input("Enter Barista Hourly Rate ($):", min_value=0.0, value=12.0)
 
-st.subheader("Staffing Requirements Report")
-st.write(staffing_report_df)
+# Calculate staffing requirements
+staffing_df, total_weekly_cost = calculate_staffing(monthly_sales, days_per_week, manager_rate, supervisor_rate, barista_rate)
+
+# Display the Staffing Requirements Report
+st.header("Staffing Requirements Report")
+st.table(staffing_df)
+
+# Display the total weekly cost
+st.write(f"**Total Weekly Cost (including payroll expense):** ${total_weekly_cost:.2f}")
+
+# Summary of staffing needs
+total_shift_supervisors = 2  # Based on redundancy requirement
+total_baristas = max(1, (staffing_df["Weekly Hours"][2] // 24) + 1)  # Estimate baristas based on total barista hours needed
+st.write(f"You need 1 manager, {total_shift_supervisors} shift supervisors, and approximately {total_baristas} baristas based on your staffing requirements.")
