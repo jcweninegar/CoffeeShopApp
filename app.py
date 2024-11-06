@@ -135,12 +135,34 @@ monthly_total_labor_cost = monthly_manager_cost + monthly_shift_supervisor_cost 
 st.subheader("Estimated Labor for 3 Years ($)")
 months = ["January", "February", "March", "April", "May", "June", 
           "July", "August", "September", "October", "November", "December", "Yearly Total"]
+
+# Create labor cost lists with monthly data and add yearly totals
+monthly_manager_costs = [monthly_manager_cost] * 12
+monthly_shift_supervisor_costs = [monthly_shift_supervisor_cost] * 12
+monthly_barista_costs = [monthly_barista_cost] * 12
+monthly_total_labor_costs = [monthly_total_labor_cost] * 12
+
+# Calculate yearly totals
+yearly_manager_cost = sum(monthly_manager_costs)
+yearly_shift_supervisor_cost = sum(monthly_shift_supervisor_costs)
+yearly_barista_cost = sum(monthly_barista_costs)
+yearly_total_labor_cost = sum(monthly_total_labor_costs)
+
+# Append yearly totals
+monthly_manager_costs.append(yearly_manager_cost)
+monthly_shift_supervisor_costs.append(yearly_shift_supervisor_cost)
+monthly_barista_costs.append(yearly_barista_cost)
+monthly_total_labor_costs.append(yearly_total_labor_cost)
+
+# Assemble labor cost data
 labor_cost_data = {
-    "Manager": [monthly_manager_cost] * 12,
-    "Shift Supervisor": [monthly_shift_supervisor_cost] * 12,
-    "Barista": [monthly_barista_cost] * 12,
-    "Total": [monthly_total_labor_cost] * 12
+    "Manager": monthly_manager_costs,
+    "Shift Supervisor": monthly_shift_supervisor_costs,
+    "Barista": monthly_barista_costs,
+    "Total": monthly_total_labor_costs
 }
+
+# Create DataFrame and apply currency formatting
 labor_cost_df = pd.DataFrame(labor_cost_data, index=months).applymap(lambda x: f"${int(x):,}")
 st.write(labor_cost_df)
 
