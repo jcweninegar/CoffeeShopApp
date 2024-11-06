@@ -15,15 +15,14 @@ daily_sales_percentages = [0.1399, 0.15, 0.1599, 0.1599, 0.17, 0.2199]  # Monday
 # Streamlit App Interface
 st.title("Coffee Shop Sales and Labor Forecaster")
 
-# User Inputs with Prefilled Values
-average_daily_traffic = st.number_input("Average Daily Traffic Count", min_value=0, step=1, value=1)
-average_sale = st.number_input("Average Sale Amount ($)", min_value=0.0, step=0.1, value=10.0)
-days_open_per_week = st.number_input("Days Open per Week", min_value=1, max_value=7, step=1, value=6)
-number_of_competitors = st.number_input("Number of Coffee Shops within a 2-Mile Radius", min_value=0, step=1, value=1)
+# User Inputs
+average_daily_traffic = st.number_input("Average Daily Traffic Count", min_value=0, step=1)
+average_sale = st.number_input("Average Sale Amount ($)", min_value=0.0, step=0.1)
+days_open_per_week = st.number_input("Days Open per Week", min_value=1, max_value=7, step=1)
+number_of_competitors = st.number_input("Number of Coffee Shops within a 2-Mile Radius", min_value=0, step=1)
 manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.1, value=18.0)
 shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1, value=15.0)
 barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1, value=12.0)
-payroll_tax_rate = 0.15  # Assuming a 15% payroll tax and benefits rate
 
 # Helper function to convert 24-hour format to 12-hour format with AM/PM
 def convert_to_12_hour_format(hour):
@@ -36,7 +35,7 @@ def convert_to_12_hour_format(hour):
     else:
         return f"{hour - 12}:00 PM"
 
-# Operating Hours Slider with Default Values
+# Operating Hours Slider
 operating_hours = st.slider(
     "Operating Hours (Start and End Times)", 
     value=(7, 17), 
@@ -54,17 +53,18 @@ end_time_12hr = convert_to_12_hour_format(end_time)
 # Display the selected times in 12-hour format with AM/PM
 st.write(f"**Selected Operating Hours:** {start_time_12hr} - {end_time_12hr}")
 
-# Adjusted hourly rates to account for payroll taxes and benefits
-effective_manager_rate = manager_rate * (1 + payroll_tax_rate)
-effective_shift_supervisor_rate = shift_supervisor_rate * (1 + payroll_tax_rate)
-effective_barista_rate = barista_rate * (1 + payroll_tax_rate)
-
 # Button to Generate Projections
 if st.button("Generate Projections"):
 
     # Adjust capture rate based on competition
     def adjust_capture_rate(rate, competitors):
         return rate * (1 - competitors * 0.05)
+
+    # Apply payroll tax and benefits adjustment
+    payroll_tax_benefits_rate = 1.15
+    effective_manager_rate = manager_rate * payroll_tax_benefits_rate
+    effective_shift_supervisor_rate = shift_supervisor_rate * payroll_tax_benefits_rate
+    effective_barista_rate = barista_rate * payroll_tax_benefits_rate
 
     # Initialize DataFrames to store results
     monthly_labor_cost = []
@@ -108,7 +108,7 @@ if st.button("Generate Projections"):
             shift_supervisor_hours = total_supervisory_hours - manager_hours
             barista_hours = total_employee_hours - total_supervisory_hours
 
-            # Calculate costs using effective hourly rates
+            # Calculate costs
             manager_cost = effective_manager_rate * 40  # Paid for 40 hours
             shift_supervisor_cost = shift_supervisor_hours * effective_shift_supervisor_rate
             barista_cost = barista_hours * effective_barista_rate
