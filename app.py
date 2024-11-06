@@ -23,6 +23,7 @@ number_of_competitors = st.number_input("Number of Coffee Shops within a 2-Mile 
 manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.1)
 shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1)
 barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1)
+payroll_tax_rate = 0.15  # Assuming a 15% payroll tax and benefits rate
 
 # Helper function to convert 24-hour format to 12-hour format with AM/PM
 def convert_to_12_hour_format(hour):
@@ -52,6 +53,11 @@ end_time_12hr = convert_to_12_hour_format(end_time)
 
 # Display the selected times in 12-hour format with AM/PM
 st.write(f"**Selected Operating Hours:** {start_time_12hr} - {end_time_12hr}")
+
+# Adjusted hourly rates to account for payroll taxes and benefits
+effective_manager_rate = manager_rate * (1 + payroll_tax_rate)
+effective_shift_supervisor_rate = shift_supervisor_rate * (1 + payroll_tax_rate)
+effective_barista_rate = barista_rate * (1 + payroll_tax_rate)
 
 # Button to Generate Projections
 if st.button("Generate Projections"):
@@ -102,10 +108,10 @@ if st.button("Generate Projections"):
             shift_supervisor_hours = total_supervisory_hours - manager_hours
             barista_hours = total_employee_hours - total_supervisory_hours
 
-            # Calculate costs
-            manager_cost = manager_rate * 40  # Paid for 40 hours
-            shift_supervisor_cost = shift_supervisor_hours * shift_supervisor_rate
-            barista_cost = barista_hours * barista_rate
+            # Calculate costs using effective hourly rates
+            manager_cost = effective_manager_rate * 40  # Paid for 40 hours
+            shift_supervisor_cost = shift_supervisor_hours * effective_shift_supervisor_rate
+            barista_cost = barista_hours * effective_barista_rate
             weekly_labor_cost = manager_cost + shift_supervisor_cost + barista_cost
 
             # Calculate monthly labor cost
