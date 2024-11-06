@@ -24,41 +24,12 @@ manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.
 shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1)
 barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1)
 
-# Helper function to convert 24-hour format to 12-hour format with AM/PM
-def convert_to_12_hour_format(hour):
-    if hour == 0:
-        return "12:00 AM"
-    elif hour < 12:
-        return f"{hour}:00 AM"
-    elif hour == 12:
-        return "12:00 PM"
-    else:
-        return f"{hour - 12}:00 PM"
-
-# Operating Hours Slider
-operating_hours = st.slider(
-    "Operating Hours (Start and End Times)", 
-    value=(7, 17), 
-    min_value=0, 
-    max_value=24, 
-    format="%d:00",
-    help="Select the start and end times for daily operation in 24-hour format."
-)
-
-# Convert the selected start and end times to 12-hour format for display
-start_time, end_time = operating_hours
-start_time_12hr = convert_to_12_hour_format(start_time)
-end_time_12hr = convert_to_12_hour_format(end_time)
-
-# Display the selected times in 12-hour format with AM/PM
-st.write(f"**Selected Operating Hours:** {start_time_12hr} - {end_time_12hr}")
+# Helper function to adjust capture rate
+def adjust_capture_rate(rate, competitors):
+    return rate * (1 - competitors * 0.05)
 
 # Button to Generate Projections
 if st.button("Generate Projections"):
-
-    # Adjust capture rate based on competition
-    def adjust_capture_rate(rate, competitors):
-        return rate * (1 - competitors * 0.05)
 
     # Initialize DataFrames to store results
     monthly_labor_cost = []
@@ -147,3 +118,16 @@ if st.button("Generate Projections"):
 
     st.subheader("Labor Cost as a Percentage of Sales for 3 Years")
     st.write(labor_cost_percentage_df)
+
+    # Summary Text
+    st.subheader("Summary")
+    st.write(
+        f"**Estimated Sales**: Over the 3-year period, monthly sales are expected to grow based on capture rates. "
+        f"This provides insight into the seasonal or month-by-month changes, allowing for planning around peak periods.\n\n"
+        f"**Estimated Monthly Labor Costs**: The monthly labor costs reflect the staffing needs based on coverage rules "
+        f"and employee wages. This will help in budgeting for labor expenses and determining if the staffing aligns with "
+        f"expected sales volumes.\n\n"
+        f"**Labor Cost as a Percentage of Sales**: This percentage indicates labor efficiency. Lower percentages suggest "
+        f"better labor cost efficiency in relation to sales. Monitoring this metric over time will help ensure labor "
+        f"costs are in line with profitability goals."
+    )
