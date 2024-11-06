@@ -8,7 +8,7 @@ capture_rate_years = {
     3: [0.0167, 0.0152, 0.0188, 0.0183, 0.0190, 0.0199, 0.0202, 0.0225, 0.0214, 0.0227, 0.0215, 0.0208]
 }
 
-# Define hourly sales percentages for a full 24-hour period
+# Define hourly sales percentages for operating hours (24 hours total)
 hourly_sales_percentages = [
     0.005, 0.005, 0.005, 0.005, 0.005,  # 12 AM - 5 AM
     0.01, 0.02,                         # 6 AM - 7 AM
@@ -19,19 +19,8 @@ hourly_sales_percentages = [
     0.01, 0.005, 0.005                 # 9 PM - 12 AM
 ]
 
-# Helper function to convert 24-hour time to 12-hour format with AM/PM
-def convert_to_12_hour_format(hour):
-    if hour == 0:
-        return "12:00 AM"
-    elif hour < 12:
-        return f"{hour}:00 AM"
-    elif hour == 12:
-        return "12:00 PM"
-    else:
-        return f"{hour - 12}:00 PM"
-
 # Streamlit App Interface
-st.title("Coffee Sales Forecaster")
+st.title("Coffee Shop Sales and Labor Forecaster")
 
 # User Inputs
 average_daily_traffic = st.number_input(
@@ -63,18 +52,16 @@ number_of_competitors = st.number_input(
     help="Enter the number of competing coffee shops within a 2-mile radius."
 )
 
-# Labor Rates Inputs
 manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.1)
 shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1)
 barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1)
 
 # Adjust capture rate based on competition
 def adjust_capture_rate(rate, competitors):
-    # Decrease the capture rate by 5% for each competitor
     adjustment_factor = 1 - (competitors * 0.05)
     return rate * adjustment_factor
 
-# Operating Hours Slider with 12-hour display format
+# Operating Hours Slider
 operating_hours = st.slider(
     "Operating Hours (Start and End Times)", 
     value=(7, 17), 
@@ -84,107 +71,72 @@ operating_hours = st.slider(
     help="Select the start and end times for daily operation in 24-hour format."
 )
 
-# Display the selected times in 12-hour format
 start_time, end_time = operating_hours
-st.write(f"**Selected Operating Hours:** {convert_to_12_hour_format(start_time)} - {convert_to_12_hour_format(end_time)}")
+st.write(f"**Selected Operating Hours:** {start_time}:00 - {end_time}:00")
 
-# Step 1: Calculate total operating hours per week (including open/close hours)
-daily_operating_hours = end_time - start_time
-weekly_operating_hours = daily_operating_hours * days_open_per_week
-open_close_hours = days_open_per_week * 2  # 1 hour each for opening and closing
-total_supervisory_hours = weekly_operating_hours + open_close_hours
+# Calculate estimated monthly sales for each year with adjusted capture rates
+yearly_sales_data = {}
+for year in capture_rate_years:
+    capture_rates = capture_rate_years[year]
+    monthly_sales_estimates = [
+        (average_daily_traffic * adjust_capture_rate(rate, number_of_competitors) * average_sale * days_open_per_week * 4.3)
+        for rate in capture_rates
+    ]
+    yearly_sales_data[year] = monthly_sales_estimates + [sum(monthly_sales_estimates)]  # Add yearly total as the last column
 
-# Step 2: Calculate supervisory hours (Manager + Shift Supervisor)
-# Manager covers 36 hours on the floor; subtract from total to find Shift Supervisor hours needed
-shift_supervisor_hours = total_supervisory_hours - 36  # Remaining hours for Shift Supervisors
-
-# Step 5: Calculate Total Coverage Hours based on sales
-# Apply coverage rules for each hour in the day based on hourly sales
-total_coverage_hours = 0
-for percentage in hourly_sales_percentages:
-    # Estimate daily sales per hour and apply coverage rules
-    hourly_sales = (average_daily_traffic * adjust_capture_rate(percentage, number_of_competitors) * average_sale)
-    if hourly_sales > 700:
-        total_coverage_hours += 5  # 5 employees
-    elif hourly_sales > 500:
-        total_coverage_hours += 4  # 4 employees
-    elif hourly_sales > 200:
-        total_coverage_hours += 3  # 3 employees
-    else:
-        total_coverage_hours += 2  # Minimum 2 employees
-
-# Multiply by days open per week to get weekly total coverage hours
-total_coverage_hours *= days_open_per_week
-
-# Step 6: Calculate barista hours
-barista_hours = total_coverage_hours - total_supervisory_hours
-
-# Step 7: Calculate labor costs
-# Multiply hours by rates to get monthly costs for each role
-weekly_manager_cost = manager_rate * 36  # 36 hours on floor
-weekly_shift_supervisor_cost = shift_supervisor_rate * shift_supervisor_hours
-weekly_barista_cost = barista_rate * barista_hours
-
-# Calculate monthly cost for each role and total labor cost
-monthly_manager_cost = weekly_manager_cost * 4.3
-monthly_shift_supervisor_cost = weekly_shift_supervisor_cost * 4.3
-monthly_barista_cost = weekly_barista_cost * 4.3
-monthly_total_labor_cost = monthly_manager_cost + monthly_shift_supervisor_cost + monthly_barista_cost
-
-# Display Estimated Labor Cost Table for 3 Years
-st.subheader("Estimated Labor for 3 Years ($)")
+# Convert sales data to a DataFrame for display and format as currency
 months = ["January", "February", "March", "April", "May", "June", 
           "July", "August", "September", "October", "November", "December", "Yearly Total"]
+sales_df = pd.DataFrame(yearly_sales_data, index=months).T
+sales_df.index.name = "Year"
+sales_df = sales_df.applymap(lambda x: f"${int(x):,}")  # Format as currency without cents
 
-# Create labor cost lists with monthly data and add yearly totals
-monthly_manager_costs = [monthly_manager_cost] * 12
-monthly_shift_supervisor_costs = [monthly_shift_supervisor_cost] * 12
-monthly_barista_costs = [monthly_barista_cost] * 12
-monthly_total_labor_costs = [monthly_total_labor_cost] * 12
+st.subheader("Estimated Sales for 3 Years")
+st.write(sales_df)
 
-# Calculate yearly totals
-yearly_manager_cost = sum(monthly_manager_costs)
-yearly_shift_supervisor_cost = sum(monthly_shift_supervisor_costs)
-yearly_barista_cost = sum(monthly_barista_costs)
-yearly_total_labor_cost = sum(monthly_total_labor_costs)
+# Implement Coverage Rules to Calculate Weekly Labor Requirements
+def calculate_weekly_coverage(hours_open):
+    total_hours_weekly = hours_open * days_open_per_week
+    manager_hours = min(36, total_hours_weekly)  # Manager covers up to 36 hours
+    remaining_hours = max(0, total_hours_weekly - manager_hours)  # Remaining hours after manager
+    
+    # Shift Supervisors fill remaining floor hours with open/close time
+    shift_supervisor_hours = remaining_hours + days_open_per_week * 2
+    barista_hours = total_hours_weekly - (manager_hours + shift_supervisor_hours)
+    
+    return {
+        "Manager": manager_hours,
+        "Shift Supervisor": shift_supervisor_hours,
+        "Barista": barista_hours
+    }
 
-# Append yearly totals
-monthly_manager_costs.append(yearly_manager_cost)
-monthly_shift_supervisor_costs.append(yearly_shift_supervisor_cost)
-monthly_barista_costs.append(yearly_barista_cost)
-monthly_total_labor_costs.append(yearly_total_labor_cost)
-
-# Assemble labor cost data
-labor_cost_data = {
-    "Manager": monthly_manager_costs,
-    "Shift Supervisor": monthly_shift_supervisor_costs,
-    "Barista": monthly_barista_costs,
-    "Total": monthly_total_labor_costs
+# Calculate total hours per week based on user inputs and coverage rules
+total_weekly_hours = calculate_weekly_coverage(end_time - start_time)
+labor_costs = {
+    "Manager": total_weekly_hours["Manager"] * manager_rate,
+    "Shift Supervisor": total_weekly_hours["Shift Supervisor"] * shift_supervisor_rate,
+    "Barista": total_weekly_hours["Barista"] * barista_rate
 }
+total_weekly_labor_cost = sum(labor_costs.values())
 
-# Create DataFrame and apply currency formatting
-labor_cost_df = pd.DataFrame(labor_cost_data, index=months).applymap(lambda x: f"${int(x):,}")
-st.write(labor_cost_df)
+# Estimate Monthly Labor Costs
+estimated_monthly_labor = total_weekly_labor_cost * 4.3
+st.subheader("Estimated Monthly Labor Cost")
+st.write(f"${int(estimated_monthly_labor):,}")
 
-# Calculate labor cost as a percentage of sales
-labor_cost_percentage_data = {
-    "Manager %": [(monthly_manager_cost / float(sales_df.iloc[0, i].strip('$').replace(',', ''))) * 100 if float(sales_df.iloc[0, i].strip('$').replace(',', '')) > 0 else 0 for i in range(12)],
-    "Shift Supervisor %": [(monthly_shift_supervisor_cost / float(sales_df.iloc[0, i].strip('$').replace(',', ''))) * 100 if float(sales_df.iloc[0, i].strip('$').replace(',', '')) > 0 else 0 for i in range(12)],
-    "Barista %": [(monthly_barista_cost / float(sales_df.iloc[0, i].strip('$').replace(',', ''))) * 100 if float(sales_df.iloc[0, i].strip('$').replace(',', '')) > 0 else 0 for i in range(12)],
-    "Total %": [(monthly_total_labor_cost / float(sales_df.iloc[0, i].strip('$').replace(',', ''))) * 100 if float(sales_df.iloc[0, i].strip('$').replace(',', '')) > 0 else 0 for i in range(12)]
+# Display labor costs as a percentage of sales for comparison
+# (Using the first year's average monthly sales for simplicity)
+average_monthly_sales = sum(yearly_sales_data[1]) / 12
+labor_cost_percentage = (estimated_monthly_labor / average_monthly_sales) * 100
+st.subheader("Labor Cost as a Percentage of Sales")
+st.write(f"{labor_cost_percentage:.2f}%")
+
+# Initial Staffing Needs
+initial_staffing = {
+    "Manager(s)": total_weekly_hours["Manager"] / 36,
+    "Shift Supervisor(s)": total_weekly_hours["Shift Supervisor"] / 36,
+    "Barista(s)": total_weekly_hours["Barista"] / 36
 }
-labor_cost_percentage_df = pd.DataFrame(labor_cost_percentage_data, index=months)
-labor_cost_percentage_df = labor_cost_percentage_df.applymap(lambda x: f"{x:.2f}%")
-
-st.subheader("Estimated Labor for 3 Years (%)")
-st.write(labor_cost_percentage_df)
-
-# Initial Staffing Needs based on average week for Month 7 of Year 1
-initial_manager_staff = round(36 / manager_rate)
-initial_supervisor_staff = round(shift_supervisor_hours / shift_supervisor_rate)
-initial_barista_staff = round(barista_hours / barista_rate)
 
 st.subheader("Initial Staffing Needs")
-st.write(f"Manager(s): {initial_manager_staff}")
-st.write(f"Shift Supervisor(s): {initial_supervisor_staff}")
-st.write(f"Barista(s): {initial_barista_staff}")
+st.write(initial_staffing)
