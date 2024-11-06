@@ -15,14 +15,14 @@ daily_sales_percentages = [0.1399, 0.15, 0.1599, 0.1599, 0.17, 0.2199]  # Monday
 # Streamlit App Interface
 st.title("Coffee Shop Sales and Labor Forecaster")
 
-# User Inputs
-average_daily_traffic = st.number_input("Average Daily Traffic Count", min_value=0, step=1)
-average_sale = st.number_input("Average Sale Amount ($)", min_value=0.0, step=0.1)
-days_open_per_week = st.number_input("Days Open per Week", min_value=1, max_value=7, step=1)
-number_of_competitors = st.number_input("Number of Coffee Shops within a 2-Mile Radius", min_value=0, step=1)
-manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.1)
-shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1)
-barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1)
+# User Inputs with Prefilled Values
+average_daily_traffic = st.number_input("Average Daily Traffic Count", min_value=0, step=1, value=1)
+average_sale = st.number_input("Average Sale Amount ($)", min_value=0.0, step=0.1, value=10.0)
+days_open_per_week = st.number_input("Days Open per Week", min_value=1, max_value=7, step=1, value=6)
+number_of_competitors = st.number_input("Number of Coffee Shops within a 2-Mile Radius", min_value=0, step=1, value=1)
+manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.1, value=18.0)
+shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1, value=15.0)
+barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1, value=12.0)
 payroll_tax_rate = 0.15  # Assuming a 15% payroll tax and benefits rate
 
 # Helper function to convert 24-hour format to 12-hour format with AM/PM
@@ -36,7 +36,7 @@ def convert_to_12_hour_format(hour):
     else:
         return f"{hour - 12}:00 PM"
 
-# Operating Hours Slider
+# Operating Hours Slider with Default Values
 operating_hours = st.slider(
     "Operating Hours (Start and End Times)", 
     value=(7, 17), 
