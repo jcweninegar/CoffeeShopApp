@@ -8,6 +8,10 @@ capture_rate_years = {
     3: [0.0167, 0.0152, 0.0188, 0.0183, 0.0190, 0.0199, 0.0202, 0.0225, 0.0214, 0.0227, 0.0215, 0.0208]
 }
 
+# Hourly and daily sales percentages
+hourly_sales_percentages = [0.20, 0.20, 0.0833, 0.0833, 0.0833, 0.075, 0.075, 0.0667, 0.0667, 0.0667]
+daily_sales_percentages = [0.1399, 0.15, 0.1599, 0.1599, 0.17, 0.2199]  # Monday to Saturday
+
 # Streamlit App Interface
 st.title("Coffee Shop Sales and Labor Forecaster")
 
@@ -20,54 +24,69 @@ manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.
 shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1)
 barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1)
 
-# Helper function to convert 24-hour format to 12-hour format with AM/PM
-def convert_to_12_hour_format(hour):
-    if hour == 0:
-        return "12:00 AM"
-    elif hour < 12:
-        return f"{hour}:00 AM"
-    elif hour == 12:
-        return "12:00 PM"
-    else:
-        return f"{hour - 12}:00 PM"
-
-# Operating Hours Slider
-operating_hours = st.slider(
-    "Operating Hours (Start and End Times)", 
-    value=(7, 17), 
-    min_value=0, 
-    max_value=24, 
-    format="%d:00",
-    help="Select the start and end times for daily operation in 24-hour format."
-)
-
-# Convert the selected start and end times to 12-hour format for display
-start_time, end_time = operating_hours
-start_time_12hr = convert_to_12_hour_format(start_time)
-end_time_12hr = convert_to_12_hour_format(end_time)
-
-# Display the selected times in 12-hour format with AM/PM
-st.write(f"**Selected Operating Hours:** {start_time_12hr} - {end_time_12hr}")
+# Helper function to adjust capture rate
+def adjust_capture_rate(rate, competitors):
+    return rate * (1 - competitors * 0.05)
 
 # Button to Generate Projections
 if st.button("Generate Projections"):
 
-    # Adjust capture rate based on competition
-    def adjust_capture_rate(rate, competitors):
-        adjustment_factor = 1 - (competitors * 0.05)
-        return rate * adjustment_factor
-
-    # Calculate estimated monthly sales for each year with adjusted capture rates
+    # Initialize DataFrames to store results
+    monthly_labor_cost = []
     yearly_sales_data = {}
-    for year in capture_rate_years:
-        capture_rates = capture_rate_years[year]
-        monthly_sales_estimates = [
-            (average_daily_traffic * adjust_capture_rate(rate, number_of_competitors) * average_sale * days_open_per_week * 4.3)
-            for rate in capture_rates
-        ]
-        yearly_sales_data[year] = monthly_sales_estimates + [sum(monthly_sales_estimates)]
 
-    # Convert sales data to a DataFrame for display and format as currency
+    # Loop through each year and month
+    for year in range(1, 4):
+        capture_rates = capture_rate_years[year]
+        monthly_sales_estimates = []
+        monthly_labor_estimates = []
+
+        for month_index, capture_rate in enumerate(capture_rates):
+            
+            # Calculate total monthly sales and weekly sales
+            monthly_sales = average_daily_traffic * adjust_capture_rate(capture_rate, number_of_competitors) * average_sale * days_open_per_week * 4.3
+            weekly_sales = monthly_sales / 4.3
+
+            # Calculate daily sales estimates
+            daily_sales = [weekly_sales * pct for pct in daily_sales_percentages]
+
+            # Determine employee hours for each day based on hourly sales percentages
+            total_employee_hours = 0
+            for day_sales in daily_sales:
+                hourly_sales = [day_sales * pct for pct in hourly_sales_percentages]
+                
+                for hour_sales in hourly_sales:
+                    if hour_sales > 700:
+                        total_employee_hours += 5
+                    elif hour_sales > 500:
+                        total_employee_hours += 4
+                    elif hour_sales > 200:
+                        total_employee_hours += 3
+                    else:
+                        total_employee_hours += 2
+                
+                total_employee_hours += 2  # Additional 1 hour (30 min open and 30 min close)
+
+            # Calculate supervisory and barista hours
+            total_supervisory_hours = 66  # 10 hours per day * 6 days + 1 hour for opening/closing
+            manager_hours = 36
+            shift_supervisor_hours = total_supervisory_hours - manager_hours
+            barista_hours = total_employee_hours - total_supervisory_hours
+
+            # Calculate costs
+            manager_cost = manager_rate * 40  # Paid for 40 hours
+            shift_supervisor_cost = shift_supervisor_hours * shift_supervisor_rate
+            barista_cost = barista_hours * barista_rate
+            weekly_labor_cost = manager_cost + shift_supervisor_cost + barista_cost
+
+            # Calculate monthly labor cost
+            monthly_labor_estimates.append(weekly_labor_cost * 4.3)
+            monthly_sales_estimates.append(monthly_sales)
+
+        yearly_sales_data[year] = monthly_sales_estimates + [sum(monthly_sales_estimates)]
+        monthly_labor_cost.append(monthly_labor_estimates + [sum(monthly_labor_estimates)])
+
+    # Convert sales data to DataFrame for display
     months = ["January", "February", "March", "April", "May", "June", 
               "July", "August", "September", "October", "November", "December", "Yearly Total"]
     sales_df = pd.DataFrame(yearly_sales_data, index=months).T
@@ -77,24 +96,8 @@ if st.button("Generate Projections"):
     st.subheader("Estimated Sales for 3 Years")
     st.write(sales_df)
 
-    # Calculate monthly labor costs based on weekly labor needs
-    def calculate_monthly_labor_cost():
-        monthly_labor_cost = []
-        for year in range(1, 4):
-            year_cost = []
-            for month in range(12):
-                # Assume weekly labor costs based on provided rates and coverages
-                weekly_labor_cost = (
-                    (36 * manager_rate) +
-                    (max(0, days_open_per_week * 2) * shift_supervisor_rate) + 
-                    ((days_open_per_week * (end_time - start_time) - 36) * barista_rate)
-                )
-                year_cost.append(weekly_labor_cost * 4.3)  # Approximate monthly labor cost
-            monthly_labor_cost.append(year_cost + [sum(year_cost)])  # Append yearly total
-        return monthly_labor_cost
-
-    labor_cost_data = calculate_monthly_labor_cost()
-    labor_cost_df = pd.DataFrame(labor_cost_data, index=["Year 1", "Year 2", "Year 3"], columns=months)
+    # Convert labor cost data to DataFrame for display
+    labor_cost_df = pd.DataFrame(monthly_labor_cost, index=["Year 1", "Year 2", "Year 3"], columns=months)
     labor_cost_df = labor_cost_df.applymap(lambda x: f"${int(x):,}")
 
     st.subheader("Estimated Monthly Labor Cost for 3 Years")
