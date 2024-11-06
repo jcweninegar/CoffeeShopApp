@@ -63,6 +63,11 @@ number_of_competitors = st.number_input(
     help="Enter the number of competing coffee shops within a 2-mile radius."
 )
 
+# Labor Rates Inputs
+manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.1)
+shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1)
+barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1)
+
 # Adjust capture rate based on competition
 def adjust_capture_rate(rate, competitors):
     # Decrease the capture rate by 5% for each competitor
@@ -83,16 +88,6 @@ operating_hours = st.slider(
 start_time, end_time = operating_hours
 st.write(f"**Selected Operating Hours:** {convert_to_12_hour_format(start_time)} - {convert_to_12_hour_format(end_time)}")
 
-# Coverage Rules for Staff based on Sales
-st.markdown("### Staffing Coverage Rules")
-st.markdown("""
-- **Base Coverage**: At least 2 employees on the floor at all times.
-- **Sales Thresholds**:
-    - 3 employees if sales exceed $200/hour.
-    - 4 employees if sales exceed $500/hour.
-    - 5 employees if sales exceed $700/hour.
-""")
-
 # Calculate estimated monthly sales for each year with adjusted capture rates
 yearly_sales_data = {}
 for year in capture_rate_years:
@@ -103,51 +98,48 @@ for year in capture_rate_years:
     ]
     yearly_sales_data[year] = monthly_sales_estimates + [sum(monthly_sales_estimates)]  # Add yearly total as the last column
 
-# Convert data to a DataFrame for display
+# Convert sales data to a DataFrame for display and format as currency
 months = ["January", "February", "March", "April", "May", "June", 
           "July", "August", "September", "October", "November", "December", "Yearly Total"]
 sales_df = pd.DataFrame(yearly_sales_data, index=months).T
 sales_df.index.name = "Year"
+sales_df = sales_df.applymap(lambda x: f"${int(x):,}")  # Format as currency without cents
 
 st.subheader("Estimated Sales for 3 Years")
 st.write(sales_df)
 
-# Step 3: Calculate hourly sales and determine required coverage (for the current average monthly data)
-hourly_coverage = []
-for hour, percentage in enumerate(hourly_sales_percentages):
-    # Use the average of monthly sales for each year for hourly calculations
-    avg_monthly_sales = sales_df.iloc[:, :-1].mean().mean()  # Average across all months and years
-    hourly_sales = avg_monthly_sales * percentage
-    
-    # Determine coverage based on hourly sales thresholds
-    if hourly_sales > 700:
-        staff_needed = 5
-    elif hourly_sales > 500:
-        staff_needed = 4
-    elif hourly_sales > 200:
-        staff_needed = 3
-    else:
-        staff_needed = 2  # Minimum coverage
-    
-    # Format each hour in 12-hour format with AM/PM
-    hour_label = f"{hour % 12 or 12}{'AM' if hour < 12 else 'PM'} - {(hour + 1) % 12 or 12}{'AM' if hour + 1 < 12 else 'PM'}"
-    hourly_coverage.append({
-        "Hour": hour_label,
-        "Hourly Sales": round(hourly_sales, 2),
-        "Staff Needed": staff_needed
-    })
+# Calculate labor costs for each year based on average weekly hours from coverage data
+average_weekly_hours = 612 / 6  # Assume daily coverage requirement from earlier analysis
+yearly_labor_cost_data = {
+    year: [round(average_weekly_hours * 4.3 * (manager_rate + shift_supervisor_rate + barista_rate)) for _ in range(12)] + 
+          [round(average_weekly_hours * 4.3 * (manager_rate + shift_supervisor_rate + barista_rate) * 12)]
+    for year in capture_rate_years
+}
 
-# Convert to DataFrame for display
-coverage_df = pd.DataFrame(hourly_coverage)
+labor_cost_df = pd.DataFrame(yearly_labor_cost_data, index=months).T
+labor_cost_df.index.name = "Year"
+labor_cost_df = labor_cost_df.applymap(lambda x: f"${int(x):,}")  # Format as currency without cents
 
-# Total daily and weekly coverage
-daily_total_coverage = coverage_df["Staff Needed"].sum()
-weekly_total_coverage = daily_total_coverage * days_open_per_week
+st.subheader("Estimated Labor for 3 Years ($)")
+st.write(labor_cost_df)
 
-# Display Results
-st.subheader("Hourly Coverage Based on Average Monthly Sales")
-st.write(coverage_df)
+# Calculate labor cost as a percentage of sales
+labor_cost_percentage_df = pd.DataFrame({
+    year: [(labor / float(sales.strip('$').replace(',', '')) * 100) if float(sales.strip('$').replace(',', '')) > 0 else 0 
+           for labor, sales in zip(labor_cost_df.iloc[year - 1], sales_df.iloc[year - 1])]
+    for year in yearly_sales_data
+}, index=months).T
+labor_cost_percentage_df = labor_cost_percentage_df.applymap(lambda x: f"{x:.2f}%")  # Format as percentage
 
-st.subheader("Total Coverage Needed")
-st.write(f"**Total Daily Coverage Needed**: {daily_total_coverage} employee-hours")
-st.write(f"**Total Weekly Coverage Needed**: {weekly_total_coverage} employee-hours")
+st.subheader("Estimated Labor for 3 Years (%)")
+st.write(labor_cost_percentage_df)
+
+# Initial Staffing Needs based on average week for Month 7 of Year 1
+initial_manager_staff = round(average_weekly_hours / manager_rate)
+initial_supervisor_staff = round(average_weekly_hours / shift_supervisor_rate)
+initial_barista_staff = round(average_weekly_hours / barista_rate)
+
+st.subheader("Initial Staffing Needs")
+st.write(f"Manager(s): {initial_manager_staff}")
+st.write(f"Shift Supervisor(s): {initial_supervisor_staff}")
+st.write(f"Barista(s): {initial_barista_staff}")
