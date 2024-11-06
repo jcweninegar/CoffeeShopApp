@@ -133,6 +133,8 @@ monthly_total_labor_cost = monthly_manager_cost + monthly_shift_supervisor_cost 
 
 # Display Estimated Labor Cost Table for 3 Years
 st.subheader("Estimated Labor for 3 Years ($)")
+months = ["January", "February", "March", "April", "May", "June", 
+          "July", "August", "September", "October", "November", "December", "Yearly Total"]
 labor_cost_data = {
     "Manager": [monthly_manager_cost] * 12,
     "Shift Supervisor": [monthly_shift_supervisor_cost] * 12,
@@ -143,6 +145,24 @@ labor_cost_df = pd.DataFrame(labor_cost_data, index=months).applymap(lambda x: f
 st.write(labor_cost_df)
 
 # Calculate labor cost as a percentage of sales
-labor_cost_percentage_df = pd.DataFrame({
-    "Manager %": [monthly_manager_cost / float(sales.strip('$').replace(',', '')) * 100 for sales in sales_df.iloc[year - 1]],
-    "Shift Supervisor %": [monthly_shift_supervisor_cost
+labor_cost_percentage_data = {
+    "Manager %": [(monthly_manager_cost / float(sales_df.iloc[0, i].strip('$').replace(',', ''))) * 100 if float(sales_df.iloc[0, i].strip('$').replace(',', '')) > 0 else 0 for i in range(12)],
+    "Shift Supervisor %": [(monthly_shift_supervisor_cost / float(sales_df.iloc[0, i].strip('$').replace(',', ''))) * 100 if float(sales_df.iloc[0, i].strip('$').replace(',', '')) > 0 else 0 for i in range(12)],
+    "Barista %": [(monthly_barista_cost / float(sales_df.iloc[0, i].strip('$').replace(',', ''))) * 100 if float(sales_df.iloc[0, i].strip('$').replace(',', '')) > 0 else 0 for i in range(12)],
+    "Total %": [(monthly_total_labor_cost / float(sales_df.iloc[0, i].strip('$').replace(',', ''))) * 100 if float(sales_df.iloc[0, i].strip('$').replace(',', '')) > 0 else 0 for i in range(12)]
+}
+labor_cost_percentage_df = pd.DataFrame(labor_cost_percentage_data, index=months)
+labor_cost_percentage_df = labor_cost_percentage_df.applymap(lambda x: f"{x:.2f}%")
+
+st.subheader("Estimated Labor for 3 Years (%)")
+st.write(labor_cost_percentage_df)
+
+# Initial Staffing Needs based on average week for Month 7 of Year 1
+initial_manager_staff = round(36 / manager_rate)
+initial_supervisor_staff = round(shift_supervisor_hours / shift_supervisor_rate)
+initial_barista_staff = round(barista_hours / barista_rate)
+
+st.subheader("Initial Staffing Needs")
+st.write(f"Manager(s): {initial_manager_staff}")
+st.write(f"Shift Supervisor(s): {initial_supervisor_staff}")
+st.write(f"Barista(s): {initial_barista_staff}")
