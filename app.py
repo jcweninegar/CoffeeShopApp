@@ -20,6 +20,35 @@ manager_rate = st.number_input("Manager Hourly Rate ($)", min_value=0.0, step=0.
 shift_supervisor_rate = st.number_input("Shift Supervisor Hourly Rate ($)", min_value=0.0, step=0.1)
 barista_rate = st.number_input("Barista Hourly Rate ($)", min_value=0.0, step=0.1)
 
+# Helper function to convert 24-hour format to 12-hour format with AM/PM
+def convert_to_12_hour_format(hour):
+    if hour == 0:
+        return "12:00 AM"
+    elif hour < 12:
+        return f"{hour}:00 AM"
+    elif hour == 12:
+        return "12:00 PM"
+    else:
+        return f"{hour - 12}:00 PM"
+
+# Operating Hours Slider
+operating_hours = st.slider(
+    "Operating Hours (Start and End Times)", 
+    value=(7, 17), 
+    min_value=0, 
+    max_value=24, 
+    format="%d:00",
+    help="Select the start and end times for daily operation in 24-hour format."
+)
+
+# Convert the selected start and end times to 12-hour format for display
+start_time, end_time = operating_hours
+start_time_12hr = convert_to_12_hour_format(start_time)
+end_time_12hr = convert_to_12_hour_format(end_time)
+
+# Display the selected times in 12-hour format with AM/PM
+st.write(f"**Selected Operating Hours:** {start_time_12hr} - {end_time_12hr}")
+
 # Button to Generate Projections
 if st.button("Generate Projections"):
 
