@@ -31,7 +31,7 @@ def convert_to_12_hour_format(hour):
         return f"{hour - 12}:00 PM"
 
 # Streamlit App Interface
-st.title("24-Hour Coffee Shop Sales and Staffing Forecast")
+st.title("Coffee Sales Forecaster")
 
 # User Inputs
 average_daily_traffic = st.number_input(
@@ -56,20 +56,18 @@ days_open_per_week = st.number_input(
     help="Enter the number of days your shop is open each week."
 )
 
-day_percentage = st.slider(
-    "Select Day's Sales Percentage of Monthly Sales", 
-    min_value=0.0, 
-    max_value=1.0, 
-    value=0.15, 
-    step=0.01,
-    help="Percentage of monthly sales expected on this day (e.g., 0.15 for 15%)."
+number_of_competitors = st.number_input(
+    "Number of Coffee Shops within a 2-Mile Radius",
+    min_value=0,
+    step=1,
+    help="Enter the number of competing coffee shops within a 2-mile radius."
 )
 
-year = st.selectbox(
-    "Select Year of Operation",
-    options=[1, 2, 3],
-    help="Choose the operational year for adjusted capture rates."
-)
+# Adjust capture rate based on competition
+def adjust_capture_rate(rate, competitors):
+    # Decrease the capture rate by 5% for each competitor
+    adjustment_factor = 1 - (competitors * 0.05)
+    return rate * adjustment_factor
 
 # Operating Hours Slider with 12-hour display format
 operating_hours = st.slider(
@@ -95,30 +93,31 @@ st.markdown("""
     - 5 employees if sales exceed $700/hour.
 """)
 
-# Calculate monthly sales for each month in the selected year
-capture_rates = capture_rate_years[year]
-monthly_sales_estimates = [
-    (average_daily_traffic * rate * average_sale * days_open_per_week * 4.3) for rate in capture_rates
-]
+# Calculate estimated monthly sales for each year with adjusted capture rates
+yearly_sales_data = {}
+for year in capture_rate_years:
+    capture_rates = capture_rate_years[year]
+    monthly_sales_estimates = [
+        (average_daily_traffic * adjust_capture_rate(rate, number_of_competitors) * average_sale * days_open_per_week * 4.3)
+        for rate in capture_rates
+    ]
+    yearly_sales_data[year] = monthly_sales_estimates + [sum(monthly_sales_estimates)]  # Add yearly total as the last column
 
-# Display estimated monthly sales
-monthly_sales_df = pd.DataFrame({
-    "Month": ["January", "February", "March", "April", "May", "June", 
-              "July", "August", "September", "October", "November", "December"],
-    "Estimated Monthly Sales": [round(sales, 2) for sales in monthly_sales_estimates]
-})
+# Convert data to a DataFrame for display
+months = ["January", "February", "March", "April", "May", "June", 
+          "July", "August", "September", "October", "November", "December", "Yearly Total"]
+sales_df = pd.DataFrame(yearly_sales_data, index=months).T
+sales_df.index.name = "Year"
 
-st.subheader("Estimated Monthly Sales for Selected Year")
-st.write(monthly_sales_df)
+st.subheader("Estimated Sales for 3 Years")
+st.write(sales_df)
 
-# Total estimated monthly sales for the year
-total_estimated_sales = sum(monthly_sales_estimates)
-st.write(f"**Total Estimated Sales for Year {year}:** ${total_estimated_sales:,.2f}")
-
-# Step 3: Calculate hourly sales and determine required coverage
+# Step 3: Calculate hourly sales and determine required coverage (for the current average monthly data)
 hourly_coverage = []
 for hour, percentage in enumerate(hourly_sales_percentages):
-    hourly_sales = (total_estimated_sales / 12) * day_percentage * percentage  # Assuming average monthly sales / day pattern
+    # Use the average of monthly sales for each year for hourly calculations
+    avg_monthly_sales = sales_df.iloc[:, :-1].mean().mean()  # Average across all months and years
+    hourly_sales = avg_monthly_sales * percentage
     
     # Determine coverage based on hourly sales thresholds
     if hourly_sales > 700:
@@ -138,15 +137,15 @@ for hour, percentage in enumerate(hourly_sales_percentages):
         "Staff Needed": staff_needed
     })
 
-# Step 4: Convert to DataFrame for easier display and calculation of daily totals
+# Convert to DataFrame for display
 coverage_df = pd.DataFrame(hourly_coverage)
 
-# Step 5: Calculate total daily and weekly coverage
+# Total daily and weekly coverage
 daily_total_coverage = coverage_df["Staff Needed"].sum()
 weekly_total_coverage = daily_total_coverage * days_open_per_week
 
 # Display Results
-st.subheader("Hourly Coverage Based on Sales")
+st.subheader("Hourly Coverage Based on Average Monthly Sales")
 st.write(coverage_df)
 
 st.subheader("Total Coverage Needed")
